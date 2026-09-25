@@ -1,7 +1,7 @@
 import { asyncHandler } from '../utils/asynchandler.js'
 import { ApiError } from '../utils/ApiError.js'
 import { User } from '../models/user.model.js'
-import { uploadOnCloudinary } from '../utils/cloudinary.js'
+import { deleteFromCloudinary, uploadOnCloudinary } from '../utils/cloudinary.js'
 import { ApiResponse } from '../utils/ApiResponse.js'
 import jwt from 'jsonwebtoken'
 const generateAccessAndReferenceTokens = async (userId) => {
@@ -211,7 +211,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
         }
     ).select("-password")
 
-    return res.status(200).json(new ApiResponse(200, user, "Account details updated successfully"))
+    return res.status(200).json(new ApiResponse(200, updatedUser, "Account details updated successfully"))
 
 })
 
@@ -220,10 +220,13 @@ const updateUserAvatar = asyncHandler(async(req,res)=>{
 
     if(!avatarLocalPath) throw new ApiError(400, "Avatar file is missing!")
 
+    const currentUser = await User.findById(req.user?._id)
+    if (!currentUser) throw new ApiError(404, "User does not exist")
+
     const avatar = await uploadOnCloudinary(avatarLocalPath)
     if(!avatar) throw new ApiError(400, "Error while uploading on avatar!")
     
-    const user = await findByIdAndUpdate(
+    const user = await User.findByIdAndUpdate(
         req.user?._id,
         {
             $set:{
@@ -232,6 +235,9 @@ const updateUserAvatar = asyncHandler(async(req,res)=>{
         },
         {returnDocument:'after'}
     )
+
+    await deleteFromCloudinary(currentUser.avatar)
+
     return res
         .status(200)
         .json(new ApiResponse(
@@ -246,10 +252,13 @@ const updateUserCoverImage = asyncHandler(async(req,res)=>{
 
     if(!CoverImgLocalPath) throw new ApiError(400, "Cover Image file is missing!")
 
+    const currentUser = await User.findById(req.user?._id)
+    if (!currentUser) throw new ApiError(404, "User does not exist")
+
     const cover = await uploadOnCloudinary(CoverImgLocalPath)
     if(!cover) throw new ApiError(400, "Error while uploading on Cover Image!")
     
-    const user = await findByIdAndUpdate(
+    const user = await User.findByIdAndUpdate(
         req.user?._id,
         {
             $set:{
@@ -258,6 +267,9 @@ const updateUserCoverImage = asyncHandler(async(req,res)=>{
         },
         {returnDocument:'after'}
     )
+
+    await deleteFromCloudinary(currentUser.coverImage)
+
     return res
         .status(200)
         .json(new ApiResponse(
@@ -267,4 +279,4 @@ const updateUserCoverImage = asyncHandler(async(req,res)=>{
         ))
 })
 
-export { registerUser, loginUser, logoutUser, refreshAccessToken, changeCurrentPassword, getCurrentUser, updateAccountDetails }
+export { registerUser, loginUser, logoutUser, refreshAccessToken, changeCurrentPassword, getCurrentUser, updateAccountDetails, updateUserCoverImage, updateUserAvatar }
