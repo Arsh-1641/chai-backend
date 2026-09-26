@@ -136,7 +136,7 @@ const logoutUser = asyncHandler(async (req, res) => {
 })
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
-    const incomingRefreshToken = req.cookies.refreshToken || request.body.refreshToken
+    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
     if (!incomingRefreshToken) throw new ApiError(401, "Unauthorized request")
 
     try {
@@ -174,7 +174,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
 const changeCurrentPassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword } = req.body;
-    const user = User.findById(req.user?._id)
+    const user = await User.findById(req.user?._id)
     const isPassCorrect = await user.isPasswordCorrect(oldPassword)
     if (!isPassCorrect) throw new ApiError(400, "Invalid Old Password")
 
@@ -293,7 +293,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
         },
         {
             $lookup: {
-                from: 'subcriptions',
+                from: 'subscriptions',
                 localField: '_id',
                 foreignField: "channel",
                 as: "subscribers"
@@ -301,9 +301,9 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
         },
         {
             $lookup: {
-                from: 'subcriptions',
+                from: 'subscriptions',
                 localField: '_id',
-                foreignField: "subcriber",
+                foreignField: "subscriber",
                 as: "subscribedTo"
             }
         },
@@ -346,4 +346,53 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
         )
 })
 
-export { registerUser, loginUser, logoutUser, refreshAccessToken, changeCurrentPassword, getCurrentUser, updateAccountDetails, updateUserCoverImage, updateUserAvatar }
+const getWatchHistory = asyncHandler(async(req,res)=>{
+    const user = await User.aggregate([
+        {
+            $match:{
+                _id: new mongoose.Types.ObjectId(req.user._id)
+            }
+        },
+        {
+            $lookup:{
+                from:'videos',
+                localField:'watchHistory',
+                foreignField:'_id',
+                as:"watchHistory",
+                pipeline:[
+                    {
+                        $lookup:{
+                            from:"users",
+                            localField:'owner',
+                            foreignField:"_id",
+                            as:"owner",
+                            pipeline:[
+                                {
+                                    $project:{
+                                        username:1,
+                                        fullName:1,
+                                        avatar:1,
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        $addFields:{
+                            owner:{
+                                $first:"$owner"
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    ])
+    return res.status(200).json(new ApiResponse(
+        200,
+        user[0].watchHistory,
+        "Watch History fetched successfully"
+    ))
+})
+
+export { registerUser, loginUser, logoutUser, refreshAccessToken, changeCurrentPassword, getCurrentUser, updateAccountDetails, updateUserCoverImage, updateUserAvatar, getWatchHistory, getUserChannelProfile }
